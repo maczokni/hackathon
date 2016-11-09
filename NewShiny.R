@@ -6,24 +6,28 @@ gp.no.patients<- read.csv("gpNoPatientsData.csv", header=T)
 prescriptions <- read.csv("Data_Practice.csv")
 names(prescriptions)[names(prescriptions)=="Practice"] <- "PRACTICE_CODE"
 gp.no.patients <- merge(prescriptions, gp.no.patients, by="PRACTICE_CODE")
+gp.no.patients$Asthma <- gp.no.patients$Pres_Count_Asthma/gp.no.patients$totalPatients*100
+gp.no.patients$Allergies <- gp.no.patients$Pres_Count_Allergies/gp.no.patients$totalPatients*100
+gp.no.patients$Diabetes <- gp.no.patients$Pres_Count_Diabetes/gp.no.patients$totalPatients*100
 gp.no.patients<- na.omit(gp.no.patients)
-gp.no.patients$Pres_Count_Asthma_Rate <- gp.no.patients$Pres_Count_Asthma/gp.no.patients$totalPatients*100
 
-gp.no.patients <- gp.no.patients[gp.no.patients$Pres_Count_Asthma_Rate < 2,]
+gp.no.patients <- gp.no.patients[gp.no.patients$Allergies < 2,]
 
 ui <- bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
   leafletOutput("map", width = "100%", height = "100%"),
   absolutePanel(top = 10, right = 10,
-                sliderInput("range", "MyVar", min(gp.no.patients$totalPatients),
+                sliderInput("range", "Select range for number of patients", min(gp.no.patients$totalPatients),
                             max(gp.no.patients$totalPatients),
                             value = range(gp.no.patients$totalPatients), step = 0.1
                 ),
                 #selector in progress
                 selectInput("select", 
-                            label = "Select cat", 
-                            choices = unique(DIR_25_1yr$CSEP_CATEGORY), 
-                            selected = "DISTURBANCE"),
+                            label = "Select medical issue", 
+                            choices = c("Allergies" = gp.no.patients$Allergies,
+                                        "Asthma" = gp.no.patients$Asthma,
+                                        "Diabetes" = gp.no.patients$Diabetes), 
+                            selected = "Allergies"),
                 checkboxInput("legend", "Show legend", TRUE)
   )
 )
@@ -38,7 +42,9 @@ server <- function(input, output, session) {
   # This reactive expression represents the palette function,
   # which changes as the user makes selections in UI.
   colorpal <- reactive({
-    colorNumeric("Blues", gp.no.patients$Pres_Count_Asthma_Rate)
+  #  colorNumeric("Blues", eval(as.symbol(paste0("gp.no.patients", "$", input$select))))
+   colorNumeric("Blues", gp.no.patients$Allergies)
+#colorNumeric("Blues", input$select)
   })
   
   output$map <- renderLeaflet({
@@ -60,7 +66,10 @@ server <- function(input, output, session) {
     leafletProxy("map", data = filteredData()) %>%
       clearShapes() %>%
       addCircles(radius = ~totalPatients,  color = "#777777",
-                 fillColor = ~pal(Pres_Count_Asthma_Rate), fillOpacity = 0.7, popup = ~paste(Pres_Count_Asthma_Rate)
+                 fillColor = ~pal(Allergies), fillOpacity = 0.7, popup = ~paste0("<b>GP:</b>", 
+                                                                                 gp.no.patients$PNAME, 
+                                                                                 "    ", "<br><b>Prescription per 100 patients: </b>", 
+                                                                                 Allergies)
       )
   })
   
@@ -74,7 +83,7 @@ server <- function(input, output, session) {
     if (input$legend) {
       pal <- colorpal()
       proxy %>% addLegend(position = "bottomright",
-                          pal = pal, values = ~Pres_Count_Asthma_Rate
+                          pal = pal, values = ~Allergies
       )
     }
   })
