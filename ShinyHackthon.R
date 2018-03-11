@@ -1,17 +1,18 @@
 library(shiny)
 library(leaflet)
 library(RColorBrewer)
-
+setwd("~/Desktop/hackathon")
 gp.no.patients<- read.csv("gpNoPatientsData.csv", header=T)
-quakes$lat<- runif(1000,53,54)
-quakes$long<- runif(1000,-2.5,-2 )
+gp.no.patients<- na.omit(gp.no.patients)
+
 
 ui <- bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
   leafletOutput("map", width = "100%", height = "100%"),
   absolutePanel(top = 10, right = 10,
-                sliderInput("range", "MyVar", min(quakes$mag), max(quakes$mag),
-                            value = range(quakes$mag), step = 0.1
+                sliderInput("range", "MyVar", min(gp.no.patients$totalPatients),
+                            max(gp.no.patients$totalPatients),
+                            value = range(gp.no.patients$totalPatients), step = 0.1
                 ),
                 checkboxInput("legend", "Show legend", TRUE)
   )
@@ -21,13 +22,13 @@ server <- function(input, output, session) {
   
   # Reactive expression for the data subsetted to what the user selected
   filteredData <- reactive({
-    quakes[quakes$mag >= input$range[1] & quakes$mag <= input$range[2],]
+    quakes[gp.no.patients$totalPatients >= input$range[1] & gp.no.patients$totalPatients <= input$range[2],]
   })
   
   # This reactive expression represents the palette function,
   # which changes as the user makes selections in UI.
   colorpal <- reactive({
-    colorNumeric("Blues", quakes$mag)
+    colorNumeric("Blues", gp.no.patients$totalPatients)
   })
   
   output$map <- renderLeaflet({
@@ -35,7 +36,8 @@ server <- function(input, output, session) {
     # won't need to change dynamically (at least, not unless the
     # entire map is being torn down and recreated).
     leaflet(quakes) %>% addTiles() %>%
-      fitBounds(~min(long), ~min(lat), ~max(long), ~max(lat))
+      fitBounds(~min(gp.no.patients$lat), ~min(gp.no.patients$lat),
+                ~max(gp.no.patients$long), ~max(gp.no.patients$lat))
   })
   
   # Incremental changes to the map (in this case, replacing the
@@ -47,14 +49,14 @@ server <- function(input, output, session) {
     
     leafletProxy("map", data = filteredData()) %>%
       clearShapes() %>%
-      addCircles(radius = ~10^mag/500, weight = 1, color = "#777777",
-                 fillColor = ~pal(mag), fillOpacity = 0.7, popup = ~paste(mag)
+      addCircles(radius = ~1, weight = 10, color = "#777777",
+                 fillColor = ~pal(gp.no.patients$totalPatients), fillOpacity = 0.7, popup = ~paste(gp.no.patients$totalPatients)
       )
   })
   
   # Use a separate observer to recreate the legend as needed.
   observe({
-    proxy <- leafletProxy("map", data = quakes)
+    proxy <- leafletProxy("map", data = gp.no.patients)
     
     # Remove any existing legend, and only if the legend is
     # enabled, create a new one.
@@ -62,7 +64,7 @@ server <- function(input, output, session) {
     if (input$legend) {
       pal <- colorpal()
       proxy %>% addLegend(position = "bottomright",
-                          pal = pal, values = ~mag
+                          pal = pal, values = ~gp.no.patients$totalPatients
       )
     }
   })
